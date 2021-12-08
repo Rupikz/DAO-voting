@@ -112,10 +112,12 @@ contract Token is IERC20, Ownable {
     string private _name;
     string private _symbol;
     uint256 private _totalSupply;
+    uint8 private _decimals;
 
-    constructor(string memory name_, string memory symbol_) {
+    constructor(string memory name_, string memory symbol_, uint8 decimals_) {
         _name = name_;
         _symbol = symbol_;
+        _decimals = decimals_;
     }
 
     function name() public view virtual override returns (string memory) {
@@ -127,7 +129,7 @@ contract Token is IERC20, Ownable {
     }
 
     function decimals() public view virtual override returns (uint8) {
-        return 8;
+        return _decimals;
     }
 
     function totalSupply() public view virtual override returns (uint256) {

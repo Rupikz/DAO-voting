@@ -2,9 +2,11 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 
 describe("Token", function () {
+  const decimals = 18;
+
   beforeEach(async function () {
     const Token = await ethers.getContractFactory("Token");
-    const token = await Token.deploy("Nikolai", "NIC");
+    const token = await Token.deploy("Nikolai", "NIC", decimals);
     await token.deployed();
     const [sender, recipient, account, accountOther] =
       await ethers.getSigners();
@@ -18,7 +20,7 @@ describe("Token", function () {
   it("Мета данные контракта", async function () {
     expect(await this.token.name()).to.equal("Nikolai");
     expect(await this.token.symbol()).to.equal("NIC");
-    expect(await this.token.decimals()).to.equal(8);
+    expect(await this.token.decimals()).to.equal(decimals);
     expect(await this.token.totalSupply()).to.equal(0);
   });
 
