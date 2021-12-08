@@ -42,11 +42,9 @@ contract Token is IERC20 {
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
 
-
     string private _name;
     string private _symbol;
     uint256 private _totalSupply;
-
 
     constructor(string memory name_, string memory symbol_) {
         _name = name_;
@@ -166,8 +164,6 @@ contract Token is IERC20 {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
 
-        _beforeTokenTransfer(sender, recipient, amount);
-
         uint256 senderBalance = _balances[sender];
         require(
             senderBalance >= amount,
@@ -179,26 +175,18 @@ contract Token is IERC20 {
         _balances[recipient] += amount;
 
         emit Transfer(sender, recipient, amount);
-
-        _afterTokenTransfer(sender, recipient, amount);
     }
 
     function _mint(address account, uint256 amount) internal virtual {
         require(account != address(0), "ERC20: mint to the zero address");
 
-        _beforeTokenTransfer(address(0), account, amount);
-
         _totalSupply += amount;
         _balances[account] += amount;
         emit Transfer(address(0), account, amount);
-
-        _afterTokenTransfer(address(0), account, amount);
     }
 
     function _burn(address account, uint256 amount) internal virtual {
         require(account != address(0), "ERC20: burn from the zero address");
-
-        _beforeTokenTransfer(account, address(0), amount);
 
         uint256 accountBalance = _balances[account];
         require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
@@ -208,8 +196,6 @@ contract Token is IERC20 {
         _totalSupply -= amount;
 
         emit Transfer(account, address(0), amount);
-
-        _afterTokenTransfer(account, address(0), amount);
     }
 
     function _approve(
@@ -223,16 +209,4 @@ contract Token is IERC20 {
         _allowances[owner][spender] = amount;
         emit Approval(owner, spender, amount);
     }
-
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal virtual {}
-
-    function _afterTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal virtual {}
 }

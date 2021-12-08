@@ -6,6 +6,7 @@ import "hardhat-docgen";
 import "hardhat-gas-reporter";
 import { HardhatUserConfig } from "hardhat/config";
 import "solidity-coverage";
+import "./tasks/index.ts";
 
 dotenv.config();
 
