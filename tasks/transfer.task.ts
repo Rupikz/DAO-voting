@@ -10,7 +10,7 @@ task("transfer", "Transfer tokens from account.")
     const Contract = await ethers.getContractFactory("Token");
     const contract = Contract.attach(address);
 
-    await contract.approve(recipient, amount);
+    await contract.transfer(recipient, amount);
   });
 
 module.exports = {};
