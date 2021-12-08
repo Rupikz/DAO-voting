@@ -17,7 +17,7 @@ task("mint", "Creates tokens and assigns them to account.")
     }
     const Token = await hre.ethers.getContractFactory("Token");
     const token = Token.attach(contractAddress);
-    await token._mint(args.account, args.amount);
+    await token.mint(args.account, args.amount);
   });
 
 module.exports = {};

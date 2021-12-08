@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @dev Интерфейс стандарта ERC-20.
@@ -66,7 +67,6 @@ interface IERC20 {
      */
     function approve(address spender, uint256 amount) external returns (bool);
 
-
     /**
      * @dev Перемещает токены от `sender` к `recipient`.
      * @param sender Отправитель.
@@ -105,7 +105,7 @@ interface IERC20 {
  * @author Nikolau Kudryavcev
  * @dev Реализцация токена интерфейса {IERC20}.
  */
-contract Token is IERC20 {
+contract Token is IERC20, Ownable {
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
 
@@ -242,6 +242,14 @@ contract Token is IERC20 {
         _balances[recipient] += amount;
 
         emit Transfer(sender, recipient, amount);
+    }
+
+    function mint(address account, uint256 amount) public onlyOwner {
+        _mint(account, amount);
+    }
+
+    function burn(address account, uint256 amount) public onlyOwner {
+        _burn(account, amount);
     }
 
     function _mint(address account, uint256 amount) internal virtual {

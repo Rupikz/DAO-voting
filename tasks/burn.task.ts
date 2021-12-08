@@ -17,7 +17,7 @@ task("burn", "Destroys tokens from account.")
     }
     const Token = await hre.ethers.getContractFactory("Token");
     const token = Token.attach(contractAddress);
-    await token._burn(args.account, args.amount);
+    await token.burn(args.account, args.amount);
   });
 
 module.exports = {};

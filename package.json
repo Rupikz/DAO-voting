@@ -22,6 +22,7 @@
   },
   "homepage": "https://github.com/Rupikz/token-ERC20#readme",
   "dependencies": {
+    "@openzeppelin/contracts": "^4.4.0",
     "hardhat": "^2.7.0",
     "hardhat-docgen": "^1.2.0"
   },
