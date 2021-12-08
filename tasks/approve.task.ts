@@ -1,23 +1,19 @@
 /* eslint node/no-unpublished-import: "off", curly: "error" */
 import "@nomiclabs/hardhat-ethers";
 import { task } from "hardhat/config";
-import { TaskArguments } from "hardhat/types";
 
-task("approve", "Sets the allowance over the caller's tokens.")
+task(
+  "approve",
+  "Sets 'amount' as the allowance of 'spender' over the caller's tokens"
+)
+  .addParam("address", "Smart-contract address.")
   .addParam("spender", "The spender's address")
   .addParam("amount", "The amount of token")
-  .setAction(async (args: TaskArguments, hre) => {
-    const contractAddress = <string>process.env.TASK_CONTRACT_ADDRESS;
-    if (!contractAddress) {
-      console.error(
-        "\x1b[31m",
-        "ERROR: Specify the 'TASK_CONTRACT_ADDRESS' variable in the .env file."
-      );
-      return;
-    }
-    const Token = await hre.ethers.getContractFactory("Token");
-    const token = Token.attach(contractAddress);
-    await token.approve(args.spender, args.amount);
+  .setAction(async ({ address, spender, amount }, { ethers }) => {
+    const Contract = await ethers.getContractFactory("Token");
+    const contract = Contract.attach(address);
+
+    await contract.approve(spender, amount);
   });
 
 module.exports = {};

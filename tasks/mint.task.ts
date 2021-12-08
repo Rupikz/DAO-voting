@@ -1,23 +1,22 @@
 /* eslint node/no-unpublished-import: "off", curly: "error" */
 import "@nomiclabs/hardhat-ethers";
 import { task } from "hardhat/config";
-import { TaskArguments } from "hardhat/types";
 
-task("mint", "Creates tokens and assigns them to account.")
-  .addParam("account", "The account's address")
-  .addParam("amount", "The amount of token")
-  .setAction(async (args: TaskArguments, hre) => {
-    const contractAddress = <string>process.env.TASK_CONTRACT_ADDRESS;
-    if (!contractAddress) {
-      console.error(
-        "\x1b[31m",
-        "ERROR: Specify the 'TASK_CONTRACT_ADDRESS' variable in the .env file."
-      );
-      return;
-    }
-    const Token = await hre.ethers.getContractFactory("Token");
-    const token = Token.attach(contractAddress);
-    await token.mint(args.account, args.amount);
+task("mint", "Mint tokens to account.")
+  .addParam("address", "Smart-contract address.")
+  .addParam("account", "The account's address.")
+  .addParam("amount", "The amount of token.")
+  .setAction(async ({ address, account, amount }, { ethers }) => {
+    const Contract = await ethers.getContractFactory("Token");
+    const contract = Contract.attach(address);
+    console.info("Contract address: ", address);
+
+    await contract.mint(account, +amount);
+
+    const totalSupply = await contract.connect(account).totalSupply();
+    const balance = await contract.balanceOf(account);
+    console.log("Tokens total supply : ", totalSupply.toString());
+    console.log("Tokens on the account: ", balance.toString());
   });
 
 module.exports = {};
