@@ -112,7 +112,7 @@ contract Token is IERC20, Ownable {
     string private _name;
     string private _symbol;
     uint256 private _totalSupply;
-    uint8 private _decimals;
+    uint8 private immutable _decimals;
 
     constructor(string memory name_, string memory symbol_, uint8 decimals_) {
         _name = name_;
