@@ -3,7 +3,6 @@ import { ethers } from "hardhat";
 
 describe("Token", function () {
   const decimals = 18;
-  const zeroAddress = "0x0000000000000000000000000000000000000000";
 
   beforeEach(async function () {
     const Token = await ethers.getContractFactory("Token");
@@ -11,7 +10,7 @@ describe("Token", function () {
     await token.deployed();
     const [sender, recipient, account, accountOther] =
       await ethers.getSigners();
-    const zeroSender = await ethers.getSigner(zeroAddress);
+    const zeroSender = await ethers.getSigner(ethers.constants.AddressZero);
 
     this.sender = sender;
     this.recipient = recipient;
@@ -47,12 +46,12 @@ describe("Token", function () {
     expect(await this.token.balanceOf(this.accountOther)).to.equal(5);
     expect(await this.token.totalSupply()).to.equal(20);
 
-    await expect(this.token.mint(zeroAddress, 20)).to.be.revertedWith(
-      "ERC20: mint to the zero address"
-    );
-    await expect(this.token.burn(zeroAddress, 5)).to.be.revertedWith(
-      "ERC20: burn from the zero address"
-    );
+    await expect(
+      this.token.mint(ethers.constants.AddressZero, 20)
+    ).to.be.revertedWith("ERC20: mint to the zero address");
+    await expect(
+      this.token.burn(ethers.constants.AddressZero, 5)
+    ).to.be.revertedWith("ERC20: burn from the zero address");
     await expect(this.token.burn(this.account, 20)).to.be.revertedWith(
       "ERC20: burn amount exceeds balance"
     );
@@ -89,12 +88,10 @@ describe("Token", function () {
         .decreaseAllowance(this.recipient.address, 10)
     ).to.be.revertedWith("ERC20: decreased allowance below zero");
     await expect(
-      this.token.connect(this.sender).increaseAllowance(zeroAddress, 10)
+      this.token
+        .connect(this.sender)
+        .increaseAllowance(ethers.constants.AddressZero, 10)
     ).to.be.revertedWith("ERC20: approve to the zero address");
-
-    // TODO: Last test
-    // Set msg.sender = zero address for approve()
-    // await expect().to.be.revertedWith("ERC20: approve from the zero address");
   });
 
   it("Перевод токенов", async function () {
@@ -121,12 +118,12 @@ describe("Token", function () {
     await expect(
       this.token
         .connect(this.sender)
-        .transferFrom(zeroAddress, this.recipient.address, 10)
+        .transferFrom(ethers.constants.AddressZero, this.recipient.address, 10)
     ).to.be.revertedWith("ERC20: transfer from the zero address");
     await expect(
       this.token
         .connect(this.sender)
-        .transferFrom(this.sender.address, zeroAddress, 10)
+        .transferFrom(this.sender.address, ethers.constants.AddressZero, 10)
     ).to.be.revertedWith("ERC20: transfer to the zero address");
     await expect(
       this.token
