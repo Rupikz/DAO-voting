@@ -106,7 +106,7 @@ interface IERC20 {
  * @dev Реализцация токена интерфейса {IERC20}.
  */
 contract Token is IERC20, Ownable {
-    mapping(address => uint256) private _balances;
+    mapping(address => uint256) internal _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
 
     string private _name;
