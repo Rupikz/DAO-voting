@@ -68,7 +68,7 @@ interface IERC20 {
     function approve(address spender, uint256 amount) external returns (bool);
 
     /**
-     * @dev Перемещает токены от `sender` к `recipient`.
+     * @dev Перемещает доверенные токены от `sender` к `recipient`.
      * @param sender Отправитель.
      * @param recipient Получатель.
      * @param amount Количество токенов.
@@ -81,7 +81,7 @@ interface IERC20 {
     ) external returns (bool);
 
     /**
-     * @dev Вызывается, когда токены перемещаются с одной учетной записи на другую.
+     * @dev Вызывается, когда токены перемещаются с одной учетной записи на другую или при создании/удалении токенов.
      * @param from Отправитель.
      * @param to Получатель.
      * @param value Количество токенов.
@@ -103,7 +103,7 @@ interface IERC20 {
 
 /**
  * @author Nikolau Kudryavcev
- * @dev Реализцация токена интерфейса {IERC20}.
+ * @dev Реализцация интерфейса {IERC20}.
  */
 contract Token is IERC20, Ownable {
     mapping(address => uint256) internal _balances;
@@ -160,14 +160,14 @@ contract Token is IERC20, Ownable {
         return true;
     }
 
-    function allowance(address owner, address spender)
+    function allowance(address _owner, address _spender)
         public
         view
         virtual
         override
         returns (uint256)
     {
-        return _allowances[owner][spender];
+        return _allowances[_owner][_spender];
     }
 
     function approve(address spender, uint256 amount)
