@@ -11,9 +11,9 @@ task("burn", "Burn tokens to account.")
     const contract = Contract.attach(address);
     console.info("Contract address: ", address);
 
-    await contract.burn(account, +amount);
+    await contract.burn(account, amount);
 
-    const totalSupply = await contract.connect(account).totalSupply();
+    const totalSupply = await contract.totalSupply();
     const balance = await contract.balanceOf(account);
     console.log("Tokens total supply : ", totalSupply.toString());
     console.log("Tokens on the account: ", balance.toString());
