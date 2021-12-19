@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
  * @dev DAO interface.
  */
 interface IDAO {
+    // QUESTION: Будет ли дешевле переделать на bool?
     enum ProposalStatus {
         SUCCESSFUL,
         UNSUCCESSFUL,
@@ -81,14 +82,9 @@ interface IDAO {
 
     /** @notice Casting a vote for a proposal.
      * @param id Proposal ID.
-     * @param amount Number of votes.
      * @param voteType Vote type.
      */
-    function voteOf(
-        uint256 id,
-        uint256 amount,
-        VoteType voteType
-    ) external;
+    function voteOf(uint256 id, VoteType voteType) external;
 
     /** @notice Finishing voting for proposal.
      * @param id Proposal ID.

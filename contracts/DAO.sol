@@ -29,8 +29,11 @@ contract DAO is IDAO {
         uint256 minimumQuorum_,
         uint256 debatingPeriodDuration_
     ) {
-        // QUESTION: Есть ли смысл таких проверок? 
-        require(chairPerson_ != address(0), "DAO: Chairperson from the zero address.");
+        // QUESTION: Есть ли смысл таких проверок?
+        require(
+            chairPerson_ != address(0),
+            "DAO: Chairperson from the zero address."
+        );
         require(voteToken_ != address(0), "DAO: Token from the zero address.");
         _chairPerson = chairPerson_;
         _voteToken = voteToken_;
@@ -82,16 +85,7 @@ contract DAO is IDAO {
         return id;
     }
 
-    function voteOf(
-        uint256 id,
-        uint256 amount,
-        VoteType voteType
-    ) public override {
-        require(amount != 0, "DAO: Vote amount equal to zero.");
-        require(
-            _balances[msg.sender] >= amount,
-            "DAO: Transfer amount exceeds vote balance."
-        );
+    function voteOf(uint256 id, VoteType voteType) public override {
         require(_currentProposalId <= id, "DAO: Incorrect proposal id."); // TODO: Что будет без этой проверки?
 
         Proposal storage proposal = _proposals[id];
@@ -110,14 +104,14 @@ contract DAO is IDAO {
         }
 
         if (voteType == VoteType.AGREE) {
-            _votes[id][msg.sender].agree += amount;
-            _proposals[id].votesAgree += amount;
+            _votes[id][msg.sender].agree += _balances[msg.sender];
+            _proposals[id].votesAgree += _balances[msg.sender];
         } else {
-            _votes[id][msg.sender].disagree += amount;
-            _proposals[id].votesDisagree += amount;
+            _votes[id][msg.sender].disagree += _balances[msg.sender];
+            _proposals[id].votesDisagree += _balances[msg.sender];
         }
 
-        emit Voted(id, msg.sender, amount, voteType);
+        emit Voted(id, msg.sender, _balances[msg.sender], voteType);
     }
 
     function finish(uint256 id) external override {
@@ -130,7 +124,10 @@ contract DAO is IDAO {
             "DAO: Voting is active."
         ); // QUESTION: Либо поменять логику на дату начала + текущий minVotingPeriod?
         require(
-            _proposals[id].numberOfVotes >= minMinimumQuorum,
+            (IERC20(_voteToken).totalSupply() /
+                (_proposals[id].votesAgree + _proposals[id].votesDisagree)) *
+                100 >=
+                _minimumQuorum,
             "DAO: Voting is active."
         );
         if (_proposals[id].votesAgree > _proposals[id].votesDisagree) {
@@ -155,7 +152,7 @@ contract DAO is IDAO {
 
     function _changeMinimumQuorum(uint256 minimumQuorum) internal {
         require(
-            minimumQuorum >= minMinimumQuorum,
+            minimumQuorum >= minMinimumQuorum && minimumQuorum <= 100,
             string(
                 abi.encodePacked(
                     "DAO: MinimumQuorum should be more: ",
@@ -200,7 +197,7 @@ contract DAO is IDAO {
         }
 
         require(
-            _userVotes[msg.sender].length != 0,
+            _userVotes[msg.sender].length == 0,
             "DAO: There are active voting."
         );
 
@@ -208,7 +205,7 @@ contract DAO is IDAO {
         unchecked {
             _balances[msg.sender] -= amount;
         }
-        emit Deposit(msg.sender, amount);
+        emit Withdraw(msg.sender, amount);
     }
 
     modifier onlyChairPerson() {
