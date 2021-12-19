@@ -3,10 +3,12 @@ pragma solidity ^0.8.0;
 
 // QUESTION: можно ли импортировать со своей репы гитхаба?
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./interfaces/IDAO-voting.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "./interfaces/IDAO.sol";
 
 contract DAO is IDAO {
     using SafeERC20 for IERC20;
+    using Strings for *;
 
     uint256 public minVotingPeriod = 3 days;
     uint256 public minMinimumQuorum = 10;
@@ -18,11 +20,8 @@ contract DAO is IDAO {
     uint256 private _currentProposalId;
     mapping(address => uint256) public _balances;
     mapping(uint256 => Proposal) public _proposals;
-    // proposalId - user - Vote
     mapping(uint256 => mapping(address => Vote)) private _votes;
-    mapping(address => uint256[]) private _userVotes; // Текущие голоса пользователя
-
-    // mapping(uint256 => address[]) public _votedForProposal; // Кто голосовал за дынное предложение
+    mapping(address => uint256[]) private _userVotes;
 
     constructor(
         address chairPerson_,
@@ -30,6 +29,9 @@ contract DAO is IDAO {
         uint256 minimumQuorum_,
         uint256 debatingPeriodDuration_
     ) {
+        // QUESTION: Есть ли смысл таких проверок? 
+        require(chairPerson_ != address(0), "DAO: Chairperson from the zero address.");
+        require(voteToken_ != address(0), "DAO: Token from the zero address.");
         _chairPerson = chairPerson_;
         _voteToken = voteToken_;
         _changeMinimumQuorum(minimumQuorum_);
@@ -39,6 +41,7 @@ contract DAO is IDAO {
     function informationOf(uint8 id)
         external
         view
+        override
         returns (Proposal memory proposal)
     {
         return _proposals[id];
@@ -47,6 +50,7 @@ contract DAO is IDAO {
     function balanceOf(address account)
         external
         view
+        override
         returns (uint256 balance)
     {
         return _balances[account];
@@ -56,9 +60,9 @@ contract DAO is IDAO {
         string memory description,
         address recipient,
         bytes memory callData
-    ) public returns (uint256) {
-        require(recipient != address(0), "DAO: mint to the zero address");
-        require(callData.length != 0, "DAO: call data should not be empty");
+    ) public override returns (uint256) {
+        require(recipient != address(0), "DAO: mint to the zero address.");
+        require(callData.length != 0, "DAO: call data should not be empty.");
 
         uint256 id = _currentProposalId++;
         _proposals[id] = Proposal({
@@ -82,7 +86,7 @@ contract DAO is IDAO {
         uint256 id,
         uint256 amount,
         VoteType voteType
-    ) public {
+    ) public override {
         require(amount != 0, "DAO: Vote amount equal to zero.");
         require(
             _balances[msg.sender] >= amount,
@@ -116,7 +120,7 @@ contract DAO is IDAO {
         emit Voted(id, msg.sender, amount, voteType);
     }
 
-    function finish(uint256 id) external {
+    function finish(uint256 id) external override {
         require(
             _proposals[id].status == ProposalStatus.ACTIVE,
             "DAO: Proposal is already completed."
@@ -129,7 +133,6 @@ contract DAO is IDAO {
             _proposals[id].numberOfVotes >= minMinimumQuorum,
             "DAO: Voting is active."
         );
-
         if (_proposals[id].votesAgree > _proposals[id].votesDisagree) {
             _proposals[id].status = ProposalStatus.SUCCESSFUL;
             (bool callDataStatus, ) = _proposals[id].recipient.call(
@@ -145,7 +148,7 @@ contract DAO is IDAO {
     function changeVotingRules(
         uint256 minimumQuorum,
         uint256 debatingPeriodDuration
-    ) external onlyChairPerson {
+    ) external override onlyChairPerson {
         _changeMinimumQuorum(minimumQuorum);
         _changePeriodDuration(debatingPeriodDuration);
     }
@@ -156,7 +159,7 @@ contract DAO is IDAO {
             string(
                 abi.encodePacked(
                     "DAO: MinimumQuorum should be more: ",
-                    minMinimumQuorum
+                    minMinimumQuorum.toString()
                 )
             )
         );
@@ -169,32 +172,38 @@ contract DAO is IDAO {
             string(
                 abi.encodePacked(
                     "DAO: Period duration should be more: ",
-                    minVotingPeriod
+                    minVotingPeriod.toString()
                 )
             )
         );
         _debatingPeriodDuration = debatingPeriodDuration;
     }
 
-    function deposit(uint256 amount) external {
-        require(
-            _balances[msg.sender] >= amount,
-            "DAO: transfer amount exceeds balance"
-        );
+    function deposit(uint256 amount) external override {
         IERC20(_voteToken).safeTransferFrom(msg.sender, address(this), amount);
         _balances[msg.sender] += amount;
         emit Deposit(msg.sender, amount);
     }
 
-    function withdraw(uint256 amount) external {
+    function withdraw(uint256 amount) external override {
+        require(
+            _balances[msg.sender] >= amount,
+            "DAO: transfer amount exceeds vote balance."
+        );
+
+        for (uint256 i = 0; i < _userVotes[msg.sender].length; i++) {
+            uint256 proposalId = _userVotes[msg.sender][i];
+            if (_proposals[proposalId].status == ProposalStatus.ACTIVE) {
+                delete _userVotes[msg.sender][i];
+            }
+            i--;
+        }
+
         require(
             _userVotes[msg.sender].length != 0,
             "DAO: There are active voting."
         );
-        require(
-            _balances[msg.sender] >= amount,
-            "DAO: transfer amount exceeds vote balance"
-        );
+
         IERC20(_voteToken).safeTransferFrom(address(this), msg.sender, amount);
         unchecked {
             _balances[msg.sender] -= amount;
