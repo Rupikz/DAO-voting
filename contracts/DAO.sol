@@ -2,162 +2,211 @@
 pragma solidity ^0.8.0;
 
 // QUESTION: можно ли импортировать со своей репы гитхаба?
-import "./Token.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "./interfaces/IDAO-voting.sol";
 
-contract DAO is Token {
-    enum VoteStatus {
-        ACTIVE,
-        COMPLETE
-    }
-    enum VoteType {
-        agree,
-        disagree
-    }
-    struct VoteStruct {
-        uint256 agree;
-        uint256 disagree;
-    }
-    struct Proposal {
-        string description;
-        address recipient;
-        bytes32 byteCode;
-        address author;
-        VoteStruct votes;
-        uint256 startTime;
-        uint32 minimumQuorum;
-        uint32 quorum;
-        VoteStatus status;
-    }
+contract DAO is IDAO {
+    using SafeERC20 for IERC20;
 
-    string private _name;
-    string private _symbol;
-    uint8 private immutable _decimals;
-    uint256 private _proposalIndex = 0;
+    uint256 public minVotingPeriod = 3 days;
+    uint256 public minMinimumQuorum = 10;
 
+    address private _chairPerson;
+    address private _voteToken;
+    uint256 private _minimumQuorum;
+    uint256 private _debatingPeriodDuration;
+    uint256 private _currentProposalId;
+    mapping(address => uint256) public _balances;
     mapping(uint256 => Proposal) public _proposals;
-    mapping(uint256 => mapping(address => VoteStruct)) private _votedList;
-    mapping(address => uint256) private _voteBalances;
-    mapping(address => uint16[]) private _userVotes; // За что голосовал пользователь
+    // proposalId - user - Vote
+    mapping(uint256 => mapping(address => Vote)) private _votes;
+    mapping(address => uint256[]) private _userVotes; // Текущие голоса пользователя
+
+    // mapping(uint256 => address[]) public _votedForProposal; // Кто голосовал за дынное предложение
 
     constructor(
-        string memory name_,
-        string memory symbol_,
-        uint8 decimals_
-    ) Token(name_, symbol_, decimals_) {
-        _name = name_;
-        _symbol = symbol_;
-        _decimals = decimals_;
+        address chairPerson_,
+        address voteToken_,
+        uint256 minimumQuorum_,
+        uint256 debatingPeriodDuration_
+    ) {
+        _chairPerson = chairPerson_;
+        _voteToken = voteToken_;
+        _changeMinimumQuorum(minimumQuorum_);
+        _changePeriodDuration(debatingPeriodDuration_);
     }
 
-    function informationOf(uint8 id) public virtual returns (Proposal memory) {
+    function informationOf(uint8 id)
+        external
+        view
+        returns (Proposal memory proposal)
+    {
         return _proposals[id];
     }
 
-    function voteBalanceOf(address account)
-        public
+    function balanceOf(address account)
+        external
         view
-        virtual
-        returns (uint256)
+        returns (uint256 balance)
     {
-        return _voteBalances[account];
+        return _balances[account];
     }
 
     function createProposal(
         string memory description,
         address recipient,
-        bytes32 byteCode,
-        uint8 minimumQuorum
-    ) public virtual returns (uint256) {
+        bytes memory callData
+    ) public returns (uint256) {
         require(recipient != address(0), "DAO: mint to the zero address");
-        require(byteCode.length != 0, "DAO: byte code should not be empty");
-        require(
-            minimumQuorum != 0,
-            "DAO: minimum quorum must be greater than zero"
-        );
+        require(callData.length != 0, "DAO: call data should not be empty");
 
-        uint256 index = _proposalIndex;
-
-        _proposals[index] = Proposal({
+        uint256 id = _currentProposalId++;
+        _proposals[id] = Proposal({
             description: description,
+            endTimeOfVoting: block.timestamp + minVotingPeriod,
             recipient: recipient,
-            byteCode: byteCode,
+            callData: callData,
             author: msg.sender,
-            votes: VoteStruct({
-                agree: 0,
-                disagree: 0
-            }),
-            startTime: block.timestamp,
-            minimumQuorum: minimumQuorum,
-            quorum: 0,
-            status: VoteStatus.ACTIVE
+            status: ProposalStatus.ACTIVE,
+            numberOfVotes: 0,
+            votesAgree: 0,
+            votesDisagree: 0
         });
 
-        _proposalIndex += 1;
-        return index;
+        emit NewProposal(id, recipient, msg.sender);
+
+        return id;
     }
 
     function voteOf(
-        uint8 id,
-        uint8 amount,
+        uint256 id,
+        uint256 amount,
         VoteType voteType
-    ) public virtual {
+    ) public {
+        require(amount != 0, "DAO: Vote amount equal to zero.");
         require(
-            voteType != VoteType.agree || voteType != VoteType.disagree,
-            "DAO: minimum quorum must be greater than zero"
+            _balances[msg.sender] >= amount,
+            "DAO: Transfer amount exceeds vote balance."
+        );
+        require(_currentProposalId <= id, "DAO: Incorrect proposal id."); // TODO: Что будет без этой проверки?
+
+        Proposal storage proposal = _proposals[id];
+
+        require(
+            proposal.endTimeOfVoting >= block.timestamp,
+            "DAO: Voting ended."
         );
 
         if (
-            _votedList[id][msg.sender].agree == 0 &&
-            _votedList[id][msg.sender].disagree == 0
+            _votes[id][msg.sender].agree == 0 &&
+            _votes[id][msg.sender].disagree == 0
         ) {
-            _proposals[id].quorum += 1;
+            _proposals[id].numberOfVotes += 1;
+            _userVotes[msg.sender].push(id);
         }
 
-        if (
-            voteType == VoteType.agree
-        ) {
-            _votedList[id][msg.sender].agree += amount;
-            _proposals[id].votes.agree += amount;
+        if (voteType == VoteType.AGREE) {
+            _votes[id][msg.sender].agree += amount;
+            _proposals[id].votesAgree += amount;
         } else {
-            _votedList[id][msg.sender].disagree += amount;
-            _proposals[id].votes.disagree += amount;
+            _votes[id][msg.sender].disagree += amount;
+            _proposals[id].votesDisagree += amount;
         }
+
+        emit Voted(id, msg.sender, amount, voteType);
     }
 
-    function finish(uint8 id) public virtual {
+    function finish(uint256 id) external {
         require(
-            _proposals[id].status != VoteStatus.COMPLETE,
-            "DAO: proposal is already completed"
+            _proposals[id].status == ProposalStatus.ACTIVE,
+            "DAO: Proposal is already completed."
         );
-        _proposals[id].status = VoteStatus.COMPLETE;
-        // TODO: Добавить возврат денег
-    }
+        require(
+            _proposals[id].endTimeOfVoting <= block.timestamp,
+            "DAO: Voting is active."
+        ); // QUESTION: Либо поменять логику на дату начала + текущий minVotingPeriod?
+        require(
+            _proposals[id].numberOfVotes >= minMinimumQuorum,
+            "DAO: Voting is active."
+        );
 
-    function deposit(uint256 amount) public virtual {
-        uint256 balance = Token._balances[msg.sender];
-        require(balance >= amount, "DAO: transfer amount exceeds balance");
-        unchecked {
-            Token._balances[_msgSender()] = balance - amount;
-        }
-        _voteBalances[_msgSender()] += amount;
-    }
-
-    function withdraw(uint256 amount) public virtual {
-        uint256 balance = _voteBalances[msg.sender];
-        require(balance >= amount, "DAO: transfer amount exceeds vote balance");
-
-        for (uint256 i = 0; i < _userVotes[_msgSender()].length; i++) {
-            uint256 proposalIndex = _userVotes[_msgSender()][i];
-            require(
-                _proposals[proposalIndex].status != VoteStatus.ACTIVE,
-                "DAO: there are active voting"
+        if (_proposals[id].votesAgree > _proposals[id].votesDisagree) {
+            _proposals[id].status = ProposalStatus.SUCCESSFUL;
+            (bool callDataStatus, ) = _proposals[id].recipient.call(
+                _proposals[id].callData
             );
+            emit VotingFinished(id, _proposals[id].status, callDataStatus);
+        } else {
+            _proposals[id].status = ProposalStatus.UNSUCCESSFUL;
+            emit VotingFinished(id, _proposals[id].status, false);
         }
+    }
 
-        Token._balances[_msgSender()] += amount;
+    function changeVotingRules(
+        uint256 minimumQuorum,
+        uint256 debatingPeriodDuration
+    ) external onlyChairPerson {
+        _changeMinimumQuorum(minimumQuorum);
+        _changePeriodDuration(debatingPeriodDuration);
+    }
 
+    function _changeMinimumQuorum(uint256 minimumQuorum) internal {
+        require(
+            minimumQuorum >= minMinimumQuorum,
+            string(
+                abi.encodePacked(
+                    "DAO: MinimumQuorum should be more: ",
+                    minMinimumQuorum
+                )
+            )
+        );
+        _minimumQuorum = minimumQuorum;
+    }
+
+    function _changePeriodDuration(uint256 debatingPeriodDuration) internal {
+        require(
+            debatingPeriodDuration >= minVotingPeriod,
+            string(
+                abi.encodePacked(
+                    "DAO: Period duration should be more: ",
+                    minVotingPeriod
+                )
+            )
+        );
+        _debatingPeriodDuration = debatingPeriodDuration;
+    }
+
+    function deposit(uint256 amount) external {
+        require(
+            _balances[msg.sender] >= amount,
+            "DAO: transfer amount exceeds balance"
+        );
+        IERC20(_voteToken).safeTransferFrom(msg.sender, address(this), amount);
+        _balances[msg.sender] += amount;
+        emit Deposit(msg.sender, amount);
+    }
+
+    function withdraw(uint256 amount) external {
+        require(
+            _userVotes[msg.sender].length != 0,
+            "DAO: There are active voting."
+        );
+        require(
+            _balances[msg.sender] >= amount,
+            "DAO: transfer amount exceeds vote balance"
+        );
+        IERC20(_voteToken).safeTransferFrom(address(this), msg.sender, amount);
         unchecked {
-            _voteBalances[_msgSender()] -= amount;
+            _balances[msg.sender] -= amount;
         }
+        emit Deposit(msg.sender, amount);
+    }
+
+    modifier onlyChairPerson() {
+        require(
+            msg.sender == _chairPerson,
+            "DAO: caller is not the chairperson"
+        );
+        _;
     }
 }
